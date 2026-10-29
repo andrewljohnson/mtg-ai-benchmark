@@ -8,7 +8,7 @@ The question: how well do Luna, Sol, Astra, and other models pilot each deck, ag
 
 ## Current scope
 
-Initial release: a complete Old School baseline matrix across all 15 built-in decks, plus a subscription-based Luna pilot. The original pilot stopped one game at its shared 120-decision cap; the continued experiment completed that exact game and Luna finished **2–0 against random** with Sligh. The original cutoff evidence remains archived, and the continuation is disclosed. These are calibration and feasibility results, **not a completed model leaderboard**. Sol, Astra, Terra, additional decks, and direct model-versus-model results are pending actual runs.
+Initial release: a complete Old School baseline matrix across all 15 built-in decks, plus a subscription-based Luna pilot. The original pilot stopped one game at its shared 120-decision cap; the continued experiment completed that exact game and Luna finished **2–0 against random** with Sligh. The original cutoff evidence remains archived, and the continuation is disclosed. Luna also completed a seat-balanced Sligh pilot **2–0 against handcrafted**. All four model games finished; the longest used 139 decisions. These are calibration and feasibility results, **not a completed model leaderboard**. Sol, Astra, Terra, additional decks, and direct model-versus-model results are pending actual runs.
 
 The harness discovers all built-in decks in each selected format. `--format all` selects every constructed/Commander profile with registered built-in decks at the pinned commit; profiles with no built-in decks and fixed-list cubes are excluded. Initial published games are Old School only.
 
