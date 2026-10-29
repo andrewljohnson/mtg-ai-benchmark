@@ -16,6 +16,11 @@ if last_request is None and cursor.exists():
 if args.index is not None:
     if args.request is None:
         parser.error("--index requires --request")
+    observation = json.loads((args.session / "observation.json").read_text())
+    legal = observation.get("view", {}).get("observation", {}).get("legalActions", [])
+    if observation.get("requestId") != args.request or args.index not in {a["index"] for a in legal}:
+        print(json.dumps({"error": "Choice does not match the current request and legal indices", "currentRequest": observation}))
+        raise SystemExit(1)
     target = args.session / "action.json"
     temporary = target.with_suffix(".tmp")
     temporary.write_text(json.dumps({"requestId": args.request, "index": args.index}))
