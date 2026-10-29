@@ -213,7 +213,7 @@ function render() {
   }
   $("pilot-cards").innerHTML = Object.entries(data.models)
     .map(([a, m]) => {
-      const games = activeRuns.reduce(
+      const games = (run ? [run] : []).reduce(
         (n, r) =>
           n +
           (r.pilotUniqueGames?.[a] ??
@@ -221,7 +221,7 @@ function render() {
               .length),
         0,
       );
-      return `<article class="pilot-card ${games ? "" : "pending"}"><b>${names[a]}</b><p>${esc(m.model)} · ${m.effort} effort</p><span>${games ? `${games} completed games · pilot sample` : "AWAITING BENCHMARK GAMES"}</span></article>`;
+      return `<article class="pilot-card ${games ? "" : "pending"}"><b>${names[a]}</b><p>${esc(m.model)} · ${m.effort} effort</p><span>${games ? `${games} unique completed games · selected run` : "AWAITING BENCHMARK GAMES"}</span></article>`;
     })
     .join("");
 }
