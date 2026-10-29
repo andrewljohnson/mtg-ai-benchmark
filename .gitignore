@@ -6,3 +6,6 @@ __pycache__/
 .DS_Store
 .env*
 .sessions/
+
+.campaign/
+native/target/

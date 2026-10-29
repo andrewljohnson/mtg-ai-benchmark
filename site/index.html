@@ -116,7 +116,14 @@
             id="tab-games"
             aria-controls="games"
           >
-            Game ledger
+            Game ledger</button
+          ><button
+            role="tab"
+            aria-selected="false"
+            id="tab-coverage"
+            aria-controls="coverage"
+          >
+            Coverage &amp; confidence
           </button>
         </div>
         <div
@@ -225,6 +232,44 @@
             ><span id="page-label"></span
             ><button class="reset" id="next">Next →</button>
           </div>
+        </div>
+        <div
+          id="coverage"
+          role="tabpanel"
+          aria-labelledby="tab-coverage"
+          class="panel"
+          hidden
+        >
+          <div class="panel-heading">
+            <h3>Every pairing, every mirror.</h3>
+            <span id="coverage-summary"></span>
+          </div>
+          <p class="footnote">
+            Campaign confidence uses independent two-seat seed pairs, not
+            individual games. Target: 738 pairs per matchup for a conservative
+            pointwise 95% ±5 percentage-point bound. Family intervals adjust
+            across all 1,035 matchups. Before the fixed target, all results are
+            exploratory. Identical pilot/deck mirrors are controls, not skill
+            superiority tests.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>COMPETITOR A</th>
+                  <th>COMPETITOR B</th>
+                  <th>SEED PAIRS</th>
+                  <th>GAMES</th>
+                  <th>A SCORE</th>
+                  <th>PAIRED 95%</th>
+                  <th>FAMILY 95%</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody id="coverage-rows"></tbody>
+            </table>
+          </div>
+          <p class="footnote" id="coverage-ledger"></p>
         </div>
       </section>
       <section class="roster">

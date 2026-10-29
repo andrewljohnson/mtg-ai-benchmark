@@ -151,3 +151,53 @@ Contributions should include reproducible run manifests and raw game records. No
 ## License and attribution
 
 Benchmark code is [MIT licensed](LICENSE). Penta is a separate [Apache-2.0 licensed project](https://github.com/lacker/penta/blob/main/LICENSE) by lacker and contributors. Card names, rules text, and Magic: The Gathering are owned by their respective rights holders; this repository's license does not relicense those materials. This is an independent fan/research project, unaffiliated with Wizards of the Coast or OpenAI.
+
+## Continuous Old School campaign (v2)
+
+The canonical campaign is **random, handcrafted, and Luna**, with every pairing of all 15 Old School decks, including same-pilot and same-deck mirrors. Treating each pilot/deck combination as a competitor gives 45 competitors, **1,035 unordered matchups**, and **2,025 directed views**. Every matchup gets both starting seats for each independent seed pair. Mirror controls measure seat/seed behavior; identical competitors cannot establish skill superiority over themselves.
+
+The fixed target is **738 independent seed pairs per matchup**, or **1,476 games per matchup / 1,527,660 games overall**. This uses a conservative Hoeffding bound on the paired score in [0,1], giving a pointwise 95% half-width at most 5 percentage points at the target. It replaces the initial 400-pair normal-approximation planning estimate. The two games in a pair are NOT counted as independent samples. Draws score one-half; incomplete pairs do not enter inference. Family intervals use a Bonferroni adjustment across all 1,035 matchups. Published intermediate intervals are exploratory; no significance-driven early stopping is used. A close or genuinely tied matchup may never establish a significant winner.
+
+References: [Hoeffding (1963), Theorem 2](https://www.cs.rpi.edu/academics/courses/spring06/random/hoefding.pdf), [NIST multiple-comparison guidance](https://www.itl.nist.gov/div898/handbook/prc/section4/prc463.htm). Interpretation assumes independent seed pairs and a stable fixed policy. Native Luna is identified by configured host model/effort, not independently attested provider snapshots; provider alias changes must be recorded as a new campaign rather than silently pooled.
+
+This is **evaluation, not model-weight training**. V2 is a separate experiment from the legacy pilot games: it uses one native engine host and the same uniform-over-index random policy for every matchup. Each random identity has a separate SplitMix64 stream with rejection sampling; its seed follows that identity when seats swap. Handcrafted is the actual upstream policy, including in handcrafted mirrors. Nonforced native policy actions are retained as exact action JSON even when a choice is not representable by a single canonical index. Forced unique continuations advance without model calls.
+
+### Setup and queue
+
+```sh
+python3 scripts/setup_engine.py
+cargo build --release --locked --manifest-path native/Cargo.toml
+python3 -m benchmark.campaign init
+python3 -m benchmark.campaign status
+
+# Native baselines need no model allowance; publish bounded batches.
+python3 -m benchmark.campaign work --kind baseline --games 1000 --publish-every 50
+
+# One Luna game, coordinated by native subscription pilots in this chat.
+python3 -m benchmark.campaign work --kind model --games 1 \
+  --sessions /private/tmp/mtg-campaign-seats
+python3 -m benchmark.publish
+```
+
+The local `.campaign/queue.sqlite` is authoritative, ignored, and protected with separate baseline/model worker locks. Jobs are deterministic and idempotent; interrupted jobs keep their action history and resume with the same identity, decks and RNG rather than silently becoming another sample. Least-covered replicate rounds are filled before adding another replicate. Baseline and model lanes can progress concurrently. A single export lock protects public snapshots. A model game has a 2,000-decision safety ceiling and 100,000 engine-action ceiling; a cutoff is deferred, never a loss.
+
+The model coordinator **must check account allowance before starting**, remain subscription-only, and defer new model games at **75% weekly account usage** until allowance resets. This reserves headroom for other work. It must not purchase credits, use resets or enable API billing. Baselines can continue while model games wait. Account telemetry is private and is never committed.
+
+Every new Luna game starts fresh pilot context. In Luna mirrors, each seat gets a **different fresh Luna agent** and only its own channel under the game's session directory. Never route both seats through one model context. The private `.campaign/active-model.json` records the live process and seat channels; a coordinator must inspect it and the worker lock before restarting anything. Native host, pilot context, engine fingerprint, prompt and adapter configuration are fixed for the campaign. Existing live seat agents may be resumed only for their same game/seat.
+
+### Incremental publication and evidence
+
+The batch publisher uploads full journals in content-addressed GitHub Release archives, then commits compact game batches, all-data aggregates, coverage and a recent 500-game ledger window. This avoids growing the Git history with millions of full observation dumps. Both journal and archive SHA-256 values accompany each completed game. Publication is serialized, refuses unrelated staged edits, and never overwrites an existing release asset. An archive can contain up to 100 journals; use each record's member path to find a game. All batch ledgers remain under `results/old-school-v2/batches/`.
+
+V2 journals contain the exact chosen action and a SHA-256 of the canonical Rust-serialized seat observation at every decision. Model decisions additionally retain the full redacted observation and answer. Built-in policy choices are regenerated during replay and checked against the action journal. Large 64-bit seeds are strings in public ledgers so JavaScript cannot round them.
+
+```sh
+# Download the linked archive, extract the desired journals/<game_id>.jsonl.gz,
+# and verify against its batch ledger:
+python3 scripts/replay_campaign.py results/old-school-v2/batches/000000.jsonl \
+  GAME_ID --journal /path/to/journals/GAME_ID.jsonl.gz
+```
+
+The website's **Coverage & confidence** view shows every canonical pairing, completed seed pairs, fixed targets and paired/family intervals. Standings are descriptive pilot-seat aggregates: a pilot mirror contributes two seat appearances, while global game totals count the physical game once. Confidence in model comparisons belongs to the paired coverage table, not an unadjusted pooled win rate. Old pilot runs remain visible and are not pooled into this campaign.
+
+A local Codex heartbeat continues bounded chunks and publishes progress while the computer and app are available. It checks usage before model work, avoids duplicate live workers, and remains quiet on unchanged quota waits. This is a long-running target; the full campaign is not claimed complete merely because the queue and first batches are live.

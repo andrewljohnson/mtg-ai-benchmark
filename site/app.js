@@ -147,17 +147,29 @@ function render() {
   page = 0;
   renderGames();
   $("manifest").textContent = JSON.stringify(run ?? {}, null, 2);
-  const completed = data.games.filter((g) => g.status === "complete" &&
-      !data.runs.find((r) => r.runId === g.runId)?.supersededByRunId),
+  const completed = data.games.filter(
+      (g) =>
+        g.status === "complete" &&
+        !data.runs.find((r) => r.runId === g.runId)?.supersededByRunId,
+    ),
     tested = new Set(
       completed.flatMap((g) => g.decks.map((d) => g.format + ":" + d)),
     ),
     pilots = new Set(completed.flatMap((g) => g.agents));
-  $("games-stat").textContent = completed.length.toLocaleString();
+  const activeRuns = data.runs.filter((r) => !r.supersededByRunId);
+  const completedTotal = activeRuns.reduce(
+    (n, r) =>
+      n +
+      (r.completedGames ?? completed.filter((g) => g.runId === r.runId).length),
+    0,
+  );
+  $("games-stat").textContent = completedTotal.toLocaleString();
   $("decks-stat").textContent = tested.size;
   $("pilots-stat").textContent = pilots.size;
   const selected = data.games.filter((g) => g.runId === run?.runId),
-    finished = selected.filter((g) => g.status === "complete").length;
+    finished =
+      run?.completedGames ??
+      selected.filter((g) => g.status === "complete").length;
   $("run-status").textContent = run
     ? `${finished} / ${run.selectedGames} complete${run.state === "running" ? " · snapshot" : ""}`
     : "No runs yet";
@@ -167,9 +179,45 @@ function render() {
     : modelAgents.length
       ? `Exploratory model pilot · ${modelAgents.map((a) => names[a]).join(", ")} · ${run.billing}. This sample is too small to rank models. Other model/deck matchups remain untested. ${selected.filter((g) => g.status !== "complete").length} unfinished games are disclosed.`
       : `Baseline calibration · ${Object.values(run.deckLists).reduce((n, d) => n + d.length, 0)} decks selected · random versus Penta's handcrafted policy. Model scores are pending until real games are recorded. ${run.pairs} seed pair${run.pairs === 1 ? "" : "s"} per deck matchup.`;
+  const coverage = data.coverageByRun?.[run?.runId] ?? [];
+  if (coverage.length) {
+    const covered = coverage.filter((c) => c.pairs > 0).length;
+    const ready = coverage.filter((c) => c.inferenceReady).length;
+    $("coverage-summary").textContent =
+      `${covered} / ${coverage.length} matchups started · ${ready} at precision target`;
+    const filtered = coverage.filter(
+      (c) =>
+        (!$("deck").value || [c.a[1], c.b[1]].includes($("deck").value)) &&
+        (!$("opponent-deck").value ||
+          [c.a[1], c.b[1]].includes($("opponent-deck").value)),
+    );
+    $("coverage-rows").innerHTML = filtered
+      .slice(0, 100)
+      .map(
+        (c) =>
+          `<tr><td>${esc(names[c.a[0]])}<div class="quiet">${esc(c.a[1])}</div></td><td>${esc(names[c.b[0]])}<div class="quiet">${esc(c.b[1])}</div></td><td>${c.pairs} / ${run.targetSeedPairs}</td><td>${c.completedGames} / ${run.targetGamesPerCell}</td><td>${percent(c.scoreRate)}</td><td>${c.pairCI95 ? c.pairCI95.map(percent).join(" – ") : "—"}</td><td>${c.familyCI95 ? c.familyCI95.map(percent).join(" – ") : "—"}</td><td>${c.mirrorControl ? "Mirror control" : c.inferenceReady ? "Fixed target reached" : "Exploratory"}</td></tr>`,
+      )
+      .join("");
+    $("coverage-ledger").innerHTML =
+      `Showing ${Math.min(100, filtered.length)} of ${filtered.length} matchups; use deck filters to narrow. <a href="https://github.com/andrewljohnson/mtg-ai-benchmark/tree/main/results/${encodeURIComponent(run.resultDirectory)}/batches">All game batches ↗</a> · <a href="https://github.com/andrewljohnson/mtg-ai-benchmark/blob/main/results/${encodeURIComponent(run.resultDirectory)}/coverage.json">Full coverage data ↗</a>. Standings count pilot-seat appearances; a pilot mirror contributes two appearances but global game totals count it once. The ledger below is a recent window; full journals are linked from batch records.`;
+    $("coverage-notice").textContent =
+      `Full Old School campaign · 3 pilots × 15 decks, including all mirrors · ${finished.toLocaleString()} / ${run.targetGames.toLocaleString()} games complete · ${ready} / ${coverage.length} matchup targets reached. Evaluation only; no model weights are trained. Subscription-only Luna; queued as allowance permits.`;
+  } else {
+    $("coverage-summary").textContent = "Legacy pilot run";
+    $("coverage-rows").innerHTML =
+      '<tr><td colspan="8">This legacy run predates the full campaign. Select Old School v2 for complete permutation coverage.</td></tr>';
+    $("coverage-ledger").textContent = "";
+  }
   $("pilot-cards").innerHTML = Object.entries(data.models)
     .map(([a, m]) => {
-      const games = completed.filter((g) => g.agents.includes(a)).length;
+      const games = activeRuns.reduce(
+        (n, r) =>
+          n +
+          (r.pilotUniqueGames?.[a] ??
+            completed.filter((g) => g.runId === r.runId && g.agents.includes(a))
+              .length),
+        0,
+      );
       return `<article class="pilot-card ${games ? "" : "pending"}"><b>${names[a]}</b><p>${esc(m.model)} · ${m.effort} effort</p><span>${games ? `${games} completed games · pilot sample` : "AWAITING BENCHMARK GAMES"}</span></article>`;
     })
     .join("");
@@ -183,7 +231,7 @@ function renderGames() {
       .slice(page * size, (page + 1) * size)
       .map(
         (g) =>
-          `<tr><td class="quiet"><a title="Download the compressed game journal" href="https://github.com/andrewljohnson/mtg-ai-benchmark/blob/main/results/${encodeURIComponent(selectedRun().resultDirectory)}/${esc(g.journal)}">${esc(g.id.slice(0, 8))} ↗</a></td>${[0, 1].map((i) => `<td>${esc(names[g.agents[i]] ?? g.agents[i])}<div class="quiet" style="font-size:10px;margin-top:5px">${esc(g.decks[i])}</div></td>`).join("")}<td>${g.status === "complete" ? (g.result === "draw" ? "Draw" : `${esc(names[g.agents[g.result === "p1" ? 0 : 1]])} wins`) : esc(g.status)}${g.error ? `<div class="quiet" style="font-size:10px;margin-top:5px">${esc(g.error)}</div>` : ""}</td><td>${g.seed}</td><td>${g.modelCalls ?? 0}</td></tr>`,
+          `<tr><td class="quiet"><a title="Download the compressed game journal" href="${g.journalArchive ? esc(g.journalArchive) : `https://github.com/andrewljohnson/mtg-ai-benchmark/blob/main/results/${encodeURIComponent(selectedRun().resultDirectory)}/${esc(g.journal)}`}">${esc(g.id.slice(0, 8))} ↗</a></td>${[0, 1].map((i) => `<td>${esc(names[g.agents[i]] ?? g.agents[i])}<div class="quiet" style="font-size:10px;margin-top:5px">${esc(g.decks[i])}</div></td>`).join("")}<td>${g.status === "complete" ? (g.result === "draw" ? "Draw" : `${esc(names[g.agents[g.result === "p1" ? 0 : 1]])} wins`) : esc(g.status)}${g.error ? `<div class="quiet" style="font-size:10px;margin-top:5px">${esc(g.error)}</div>` : ""}</td><td>${g.seed}</td><td>${g.modelCalls ?? 0}</td></tr>`,
       )
       .join("") || '<tr><td colspan="6">No recorded games.</td></tr>';
   $("page-label").textContent =

@@ -27,8 +27,10 @@ class CallBudget:
 
 
 def atomic_json(path, value):
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(value, ensure_ascii=False))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, prefix=path.name, suffix=".tmp", delete=False) as stream:
+        stream.write(json.dumps(value, ensure_ascii=False))
+        temporary = Path(stream.name)
     temporary.replace(path)
 
 

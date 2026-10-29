@@ -13,13 +13,18 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--results", type=Path, default=root / "results")
 parser.add_argument("--out", type=Path, default=root / "dist")
 args = parser.parse_args()
-runs, games = [], []
+runs, games, rows, coverage = [], [], [], {}
 for path in sorted(args.results.glob("*/run.json")):
     run = json.loads(path.read_text())
     run["resultDirectory"] = path.parent.name
     runs.append(run)
-    for line in (path.parent / "games.jsonl").read_text().splitlines():
-        games.append(json.loads(line))
+    records = [json.loads(line) for line in (path.parent / "games.jsonl").read_text().splitlines()]
+    games.extend(records)
+    row_path = path.parent / "aggregate.json"
+    rows.extend(json.loads(row_path.read_text()) if row_path.exists() else aggregate(records))
+    coverage_path = path.parent / "coverage.json"
+    if coverage_path.exists():
+        coverage[run["runId"]] = json.loads(coverage_path.read_text())
 superseded = {}
 for run in runs:
     parent = run.get("supersedesRunId")
@@ -35,7 +40,7 @@ for path in (root / "site").iterdir():
     if path.is_file():
         shutil.copy2(path, args.out / path.name)
 payload = {"generatedAt": datetime.now(timezone.utc).isoformat(), "runs": runs,
-           "models": MODELS, "rows": aggregate(games), "games": games}
+           "models": MODELS, "rows": rows, "games": games, "coverageByRun": coverage}
 (args.out / "data.json").write_text(json.dumps(payload, separators=(",", ":")))
 (args.out / ".nojekyll").touch()
 print(f"Built dashboard: {len(runs)} runs, {len(games)} games")
