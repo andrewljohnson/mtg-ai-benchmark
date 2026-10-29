@@ -1,0 +1,10 @@
+[project]
+name = "mtg-ai-benchmark"
+version = "1.0.0"
+description = "Reproducible AI pilot evaluations for Magic: The Gathering using Penta"
+requires-python = ">=3.13"
+license = "MIT"
+dependencies = []
+
+[tool.ruff]
+line-length = 110
