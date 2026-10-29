@@ -48,6 +48,13 @@ def connect(directory):
     db = sqlite3.connect(directory / "queue.sqlite", timeout=30)
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("CREATE TABLE IF NOT EXISTS games(id TEXT PRIMARY KEY, cell TEXT, replicate INTEGER, swap INTEGER, record TEXT)")
+    if db.execute("SELECT count(*) FROM games").fetchone()[0] == 0:
+        for path in sorted((ROOT / "results/old-school-v2/batches").glob("*.jsonl")):
+            for line in path.read_text().splitlines():
+                record = json.loads(line)
+                db.execute("INSERT OR IGNORE INTO games VALUES(?,?,?,?,?)",
+                           (record["id"], record["cellId"], record["replicate"], int(record["seatSwap"]), json.dumps(record)))
+        db.commit()
     return db
 
 
@@ -111,6 +118,14 @@ def initialize(directory):
         atomic_json(directory / "plan.json", plan)
         return plan
     directory.mkdir(parents=True, exist_ok=True)
+    published = ROOT / "results/old-school-v2/run.json"
+    if published.exists():
+        plan = json.loads(published.read_text())
+        if plan.get("adapterSourceHash", adapter_hash) != adapter_hash:
+            raise ValueError("Published campaign has a different native adapter")
+        plan["adapterSourceHash"] = adapter_hash
+        atomic_json(directory / "plan.json", plan)
+        return plan
     sys.path.insert(0, str(ROOT / ".engine"))
     import penta
     decks = penta.deck_names(format="old-school-93-94")
@@ -222,11 +237,13 @@ def game(plan, job, directory, sessions):
 def export(directory, plan, db):
     with (directory / "export.lock").open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        return export_locked(directory, plan, db)
+        return export_locked(directory, plan, db)[0]
 
 
-def export_locked(directory, plan, db):
+def export_locked(directory, plan, db, published_only=False):
     records = [json.loads(r[0]) for r in db.execute("SELECT record FROM games ORDER BY rowid")]
+    if published_only:
+        records = [r for r in records if r["status"] != "complete" or r.get("journalArchive")]
     target = ROOT / "results" / plan["id"]
     target.mkdir(exist_ok=True)
     for record in records:
@@ -234,7 +251,7 @@ def export_locked(directory, plan, db):
         record["policySeeds"] = [str(x) for x in record["policySeeds"]]
     completed = [r for r in records if r["status"] == "complete"]
     payload_pilots = {a: sum(a in r["agents"] for r in completed) for a in plan["agents"]}
-    payload = {**plan, "runId": plan["id"], "state": "running", "selectedGames": plan["targetGames"],
+    payload = {**plan, "runId": plan["id"], "state": "finished" if len(completed) == plan["targetGames"] else "running", "selectedGames": plan["targetGames"],
                "plannedGames": plan["targetGames"], "recordedGames": len(records),
                "completedGames": len(completed), "deckLists": {plan["format"]: plan["decks"]},
                "pilotBackend": "native-separated-seats", "tokenUsage": None,
@@ -258,7 +275,7 @@ def export_locked(directory, plan, db):
             temporary = batch_path.with_suffix(".tmp")
             temporary.write_text(content)
             temporary.replace(batch_path)
-    return target
+    return target, records
 
 
 def main():
@@ -292,7 +309,13 @@ def main():
             for job in jobs:
                 if count >= args.games:
                     break
+                previous_row = db.execute("SELECT record FROM games WHERE id=?", (job["id"],)).fetchone()
+                previous = json.loads(previous_row[0]) if previous_row else None
                 record = game(plan, job, args.directory, args.sessions / job["id"])
+                record["attempts"] = (previous.get("attempts", 1) if previous else 0) + 1
+                if previous:
+                    record["previousAttempts"] = previous.get("previousAttempts", []) + [
+                        {k: previous.get(k) for k in ["status", "error", "modelCalls", "decisions", "durationSeconds"]}]
                 db.execute("INSERT OR REPLACE INTO games VALUES(?,?,?,?,?)",
                            (job["id"], job["cellId"], job["replicate"], int(job["seatSwap"]), json.dumps(record)))
                 db.commit()

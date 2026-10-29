@@ -180,6 +180,9 @@ function render() {
       ? `Exploratory model pilot · ${modelAgents.map((a) => names[a]).join(", ")} · ${run.billing}. This sample is too small to rank models. Other model/deck matchups remain untested. ${selected.filter((g) => g.status !== "complete").length} unfinished games are disclosed.`
       : `Baseline calibration · ${Object.values(run.deckLists).reduce((n, d) => n + d.length, 0)} decks selected · random versus Penta's handcrafted policy. Model scores are pending until real games are recorded. ${run.pairs} seed pair${run.pairs === 1 ? "" : "s"} per deck matchup.`;
   const coverage = data.coverageByRun?.[run?.runId] ?? [];
+  $("leaderboard").querySelector(".footnote").textContent = coverage.length
+    ? "Descriptive pilot-seat standings only: a pilot mirror contributes both a win and a loss (or two draws). Global totals count each physical game once. Use Coverage & confidence for independent paired samples and adjusted inference."
+    : "Standings reflect the selected experiment and its opponent mix. Small pilots are exploratory; rates are not evidence of model superiority.";
   if (coverage.length) {
     const covered = coverage.filter((c) => c.pairs > 0).length;
     const ready = coverage.filter((c) => c.inferenceReady).length;

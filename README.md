@@ -8,6 +8,9 @@ The question: how well do Luna, Sol, Astra, and other models pilot each deck, ag
 
 ## Current scope
 
+**The continuous full-permutation campaign is now live:** see [Continuous Old School campaign (v2)](#continuous-old-school-campaign-v2) for the canonical scope, statistical target, queue and publication controls. Legacy pilot results below remain separate.
+
+
 Initial release: a complete Old School baseline matrix across all 15 built-in decks, plus a subscription-based Luna pilot. The original pilot stopped one game at its shared 120-decision cap; the continued experiment completed that exact game and Luna finished **2–0 against random** with Sligh. The original cutoff evidence remains archived, and the continuation is disclosed. Luna also completed a seat-balanced Sligh pilot **2–0 against handcrafted**. All four model games finished; the longest used 139 decisions. These are calibration and feasibility results, **not a completed model leaderboard**. Sol, Astra, Terra, additional decks, and direct model-versus-model results are pending actual runs.
 
 The harness discovers all built-in decks in each selected format. `--format all` selects every constructed/Commander profile with registered built-in decks at the pinned commit; profiles with no built-in decks and fixed-list cubes are excluded. Initial published games are Old School only.
@@ -38,7 +41,7 @@ python3 -m benchmark.run --agents random,handcrafted \
   --out results/my-smoke
 ```
 
-Output directories are immutable: choose a fresh directory for each experiment. Each run records its full plan, limits, and actual games. A complete two-pilot run has `decks² × seed_pairs × 2` games. With more pilots, multiply by the number of distinct unordered pilot pairs. Same-pilot mirrors are not scheduled.
+Output directories are immutable: choose a fresh directory for each experiment. Each run records its full plan, limits, and actual games. A complete two-pilot run has `decks² × seed_pairs × 2` games. With more pilots, multiply by the number of distinct unordered pilot pairs. The legacy `benchmark.run` command does not schedule same-pilot mirrors; the canonical v2 campaign below includes every mirror.
 
 ### Models using a ChatGPT subscription
 
@@ -177,6 +180,8 @@ python3 -m benchmark.campaign work --kind baseline --games 1000 --publish-every 
 python3 -m benchmark.campaign work --kind model --games 1 \
   --sessions /private/tmp/mtg-campaign-seats
 python3 -m benchmark.publish
+# Continuous publication: each new Luna completion, 50 baseline games, or 15 minutes with new data.
+python3 -m benchmark.publish --watch
 ```
 
 The local `.campaign/queue.sqlite` is authoritative, ignored, and protected with separate baseline/model worker locks. Jobs are deterministic and idempotent; interrupted jobs keep their action history and resume with the same identity, decks and RNG rather than silently becoming another sample. Least-covered replicate rounds are filled before adding another replicate. Baseline and model lanes can progress concurrently. A single export lock protects public snapshots. A model game has a 2,000-decision safety ceiling and 100,000 engine-action ceiling; a cutoff is deferred, never a loss.
