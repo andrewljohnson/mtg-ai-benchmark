@@ -151,7 +151,7 @@ def read_partial(path):
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
-def game(plan, job, directory, sessions):
+def game(plan, job, directory, sessions, lane=None):
     work = directory / "work"
     work.mkdir(exist_ok=True)
     path = work / f"{job['id']}.jsonl"
@@ -162,7 +162,7 @@ def game(plan, job, directory, sessions):
     pilots = {seat: FilePilot(sessions / seat, budget, timeout=900) for seat in ["p1", "p2"]}
     for seat in ["p1", "p2"]:
         atomic_json(sessions / seat / "observation.json", {"waiting": True})
-    atomic_json(directory / f"active-{'model' if 'luna' in job['agents'] else 'baseline'}.json",
+    atomic_json(directory / f"active-{lane or ('model' if 'luna' in job['agents'] else 'baseline')}.json",
                 {"gameId": job["id"], "agents": job["agents"], "decks": job["decks"],
                  "sessions": str(sessions), "pid": os.getpid(), "status": "running"})
     started = time.monotonic()
@@ -229,7 +229,7 @@ def game(plan, job, directory, sessions):
     for seat in ["p1", "p2"]:
         atomic_json(sessions / seat / "observation.json", {"done": True, "gameId": job["id"],
                                                          "status": record["status"], "result": record["result"]})
-    atomic_json(directory / f"active-{'model' if 'luna' in job['agents'] else 'baseline'}.json",
+    atomic_json(directory / f"active-{lane or ('model' if 'luna' in job['agents'] else 'baseline')}.json",
                 {"gameId": job["id"], "status": record["status"], "pid": None})
     return record
 
@@ -285,9 +285,12 @@ def main():
     parser.add_argument("--kind", choices=["baseline", "model"], default="baseline")
     parser.add_argument("--games", type=int, default=50)
     parser.add_argument("--cell")
+    parser.add_argument("--lane", help="Explicit parallel model cell; requires --cell")
     parser.add_argument("--publish-every", type=int, default=0)
     parser.add_argument("--sessions", type=Path, default=ROOT / ".sessions/campaign")
     args = parser.parse_args()
+    if args.lane and (args.kind != "model" or not args.cell or not args.lane.replace("-", "").isalnum()):
+        parser.error("--lane requires model kind, an explicit cell, and an alphanumeric lane name")
     plan = initialize(args.directory)
     db = connect(args.directory)
     if args.command in {"init", "status", "export"}:
@@ -297,9 +300,16 @@ def main():
         return
     with (args.directory / f"{args.kind}.lock").open("w") as lock:
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(lock, (fcntl.LOCK_SH if args.lane else fcntl.LOCK_EX) | fcntl.LOCK_NB)
         except BlockingIOError:
             raise SystemExit("Another worker already holds this campaign lane")
+        cell_lock = None
+        if args.lane:
+            cell_lock = (args.directory / f"model-{args.cell}.lock").open("w")
+            try:
+                fcntl.flock(cell_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise SystemExit("Another worker already holds this matchup")
         count = 0
         while count < args.games:
             selection = dict(plan, cells=[c for c in plan["cells"] if not args.cell or c["id"] == args.cell])
@@ -311,7 +321,7 @@ def main():
                     break
                 previous_row = db.execute("SELECT record FROM games WHERE id=?", (job["id"],)).fetchone()
                 previous = json.loads(previous_row[0]) if previous_row else None
-                record = game(plan, job, args.directory, args.sessions / job["id"])
+                record = game(plan, job, args.directory, args.sessions / job["id"], args.lane)
                 record["attempts"] = (previous.get("attempts", 1) if previous else 0) + 1
                 if previous:
                     record["previousAttempts"] = previous.get("previousAttempts", []) + [
