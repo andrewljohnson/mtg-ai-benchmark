@@ -147,7 +147,8 @@ function render() {
   page = 0;
   renderGames();
   $("manifest").textContent = JSON.stringify(run ?? {}, null, 2);
-  const completed = data.games.filter((g) => g.status === "complete"),
+  const completed = data.games.filter((g) => g.status === "complete" &&
+      !data.runs.find((r) => r.runId === g.runId)?.supersededByRunId),
     tested = new Set(
       completed.flatMap((g) => g.decks.map((d) => g.format + ":" + d)),
     ),
@@ -254,7 +255,7 @@ try {
     "run",
     data.runs.map((r) => [
       r.runId,
-      `${r.agents.map((a) => names[a] ?? a).join(" vs ")} · ${r.runId.slice(0, 6)}`,
+      `${r.agents.map((a) => names[a] ?? a).join(" vs ")} · ${r.runId.slice(0, 6)}${r.supersededByRunId ? " · archived" : ""}`,
     ]),
   );
   updateFilters();

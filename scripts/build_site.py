@@ -20,6 +20,16 @@ for path in sorted(args.results.glob("*/run.json")):
     runs.append(run)
     for line in (path.parent / "games.jsonl").read_text().splitlines():
         games.append(json.loads(line))
+superseded = {}
+for run in runs:
+    parent = run.get("supersedesRunId")
+    if parent:
+        if parent in superseded:
+            raise ValueError("Multiple continuation branches would double-count inherited games")
+        superseded[parent] = run["runId"]
+for run in runs:
+    run["supersededByRunId"] = superseded.get(run["runId"])
+runs.sort(key=lambda r: (not bool(r["supersededByRunId"]), r["createdAt"]), reverse=True)
 args.out.mkdir(parents=True, exist_ok=True)
 for path in (root / "site").iterdir():
     if path.is_file():

@@ -8,7 +8,7 @@ The question: how well do Luna, Sol, Astra, and other models pilot each deck, ag
 
 ## Current scope
 
-Initial release: a complete Old School baseline matrix across all 15 built-in decks, plus a subscription-based Luna pilot: one completed win against random and one game truncated by the 120-decision cap. These are calibration and feasibility results, **not a completed model leaderboard**. Sol, Astra, Terra, additional decks, and direct model-versus-model results are pending actual runs.
+Initial release: a complete Old School baseline matrix across all 15 built-in decks, plus a subscription-based Luna pilot. The original pilot stopped one game at its shared 120-decision cap; the continued experiment completed that exact game and Luna finished **2–0 against random** with Sligh. The original cutoff evidence remains archived, and the continuation is disclosed. These are calibration and feasibility results, **not a completed model leaderboard**. Sol, Astra, Terra, additional decks, and direct model-versus-model results are pending actual runs.
 
 The harness discovers all built-in decks in each selected format. `--format all` selects every constructed/Commander profile with registered built-in decks at the pinned commit; profiles with no built-in decks and fixed-list cubes are excluded. Initial published games are Old School only.
 
@@ -47,7 +47,7 @@ Sign into a current Codex CLI with `codex login`, then verify `codex login statu
 ```sh
 # Two-game Luna feasibility pilot; the call cap stops further model decisions.
 python3 -m benchmark.run --agents luna,random \
-  --decks '["Sligh"]' --max-games 2 --max-model-calls 120 \
+  --decks '["Sligh"]' --max-games 2 --max-model-calls-per-game 500 --max-model-calls 2000 \
   --out results/my-luna-pilot
 
 # Full selected-deck round robin, including both baselines and model head-to-head.
@@ -70,7 +70,7 @@ The engine lives in the harness process; a pilot receives only a seat-visible JS
 ```sh
 # Organizer terminal
 python3 -m benchmark.run --agents luna,random --decks '["Sligh"]' \
-  --pilot file --session .sessions/luna --max-model-calls 120 \
+  --pilot file --session .sessions/luna --max-model-calls-per-game 500 --max-model-calls 2000 \
   --out results/my-native-luna
 
 # Pilot terminal: observe; then submit the chosen index for that request.
@@ -81,6 +81,20 @@ python3 scripts/pilot_client.py .sessions/luna --request 1 --index 0
 The submitted `--index` above is only an example: the pilot must choose from the current request's legal actions. Stale request IDs do not advance the game. A 300-second decision timeout is recorded as an error. The client omits bulky card printing/structure metadata when presenting the catalog reference. Each nonforced move must be chosen by the model, with no scripted fallback. `done:true` ends the pilot.
 
 The file adapter assumes a cooperative pilot. Same-user agents can access local files; this is a hidden-information protocol, **not an OS security boundary**. Native agents must not inspect seeds, journals, source, or game internals. Model-call counts in this mode count requested decisions; token totals are unavailable unless independently supplied.
+
+### Continue a game stopped by a cap
+
+Each game now has a 500-model-decision allowance by default. The separate whole-run default is 2,000 decisions; it remains a safety ceiling, not a per-game allocation. Increase it deliberately for a larger matrix. A per-game cutoff moves to the next game; exhausting the whole-run budget stops new games.
+
+Resume a stopped file-pilot experiment into a **new** result directory:
+
+```sh
+python3 -m benchmark.resume --from-run results/my-native-luna \
+  --out results/my-native-luna-continued --session .sessions/luna-continued \
+  --max-model-calls-per-game 500 --max-model-calls 2000
+```
+
+The same native pilot should continue using its existing context. The harness verifies and replays the original observations and actions, restores the random policy's RNG, and requests only new decisions. The cap per game counts its entire history; the run safety limit counts only newly requested decisions during continuation. Complete games are carried forward without replaying the model. Original evidence stays unchanged. The dashboard labels superseded experiments as archived and excludes them from global totals, so inherited games are not double-counted. Continuation is disclosed in the new manifest and game records.
 
 ### Build and inspect the site
 
@@ -126,7 +140,7 @@ scripts/                                     engine setup, replay, file client a
 
 ## Next experiments
 
-1. Finish and audit the low-cost Luna feasibility pilot, monitoring subscription usage.
+1. Completed the low-cost Luna-versus-random feasibility pilot; continue monitoring subscription usage.
 2. Expand Luna versus random and handcrafted across every Old School deck with balanced seats.
 3. Add Sol on the identical plan, then direct Luna-versus-Sol games.
 4. Add Astra/Terra only after inspecting allowance and per-game demand.

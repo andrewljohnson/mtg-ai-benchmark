@@ -15,7 +15,8 @@ from .core import ENGINE_COMMIT, FORMATS, MODELS, PROMPT, digest, model_view, sc
 from .pilots import BudgetStop, CallBudget, CodexPilot, FilePilot, atomic_json
 
 
-def play(penta, job, fmt, run_id, pilot, catalog, output, max_actions):
+def play(penta, job, fmt, run_id, pilot, catalog, output, max_actions,
+         max_model_calls_per_game=500, resume=None):
     game_id = digest({"runId": run_id, "format": fmt, **job})[:20]
     record = {**job, "id": game_id, "runId": run_id, "format": fmt,
               "result": None, "status": "error", "decisions": 0,
@@ -25,13 +26,26 @@ def play(penta, job, fmt, run_id, pilot, catalog, output, max_actions):
     native_seat = job["agents"].index("handcrafted") if "handcrafted" in job["agents"] else None
     opponent = job["agents"][native_seat] if native_seat is not None else "external"
     rng = random.Random(job["seed"] ^ 0x00B07B07)
+    prior_calls = 0
+    prior_duration = 0
     journal_path = output / "journals" / f"{game_id}.jsonl.gz"
     try:
-        game = penta.Game(*job["decks"], opponent=opponent,
-                          opponent_seat="p1" if native_seat == 0 else "p2",
-                          seed=job["seed"], format=fmt, match_mode="one-conclusion")
+        if resume is None:
+            game = penta.Game(*job["decks"], opponent=opponent,
+                              opponent_seat="p1" if native_seat == 0 else "p2",
+                              seed=job["seed"], format=fmt, match_mode="one-conclusion")
+            entries = []
+        else:
+            game, entries, rng, previous = resume
+            prior_calls = previous["modelCalls"]
+            prior_duration = previous["durationSeconds"]
+            record["decisions"] = len(entries)
+            record["resumedFrom"] = {"runId": previous["runId"], "gameId": previous["id"],
+                                     "decisions": len(entries), "modelCalls": prior_calls}
         with gzip.open(journal_path, "wt", encoding="utf-8") as journal:
-            for _ in range(max_actions):
+            for entry in entries:
+                journal.write(json.dumps(entry) + "\n")
+            for _ in range(max_actions - record["decisions"]):
                 if game.result() is not None:
                     break
                 seat = game.decision_seat()
@@ -47,6 +61,8 @@ def play(penta, job, fmt, run_id, pilot, catalog, output, max_actions):
                     choice = rng.choice(actions)["index"]
                     receipt = {"backend": "seeded-python-random"}
                 else:
+                    if prior_calls + pilot.budget.calls - start_calls >= max_model_calls_per_game:
+                        raise BudgetStop("Per-game model call limit reached")
                     choice, receipt = pilot.choose(model_view(observation, catalog), {"id": agent, **MODELS[agent]})
                 journal.write(json.dumps({"seat": seat, "observation": observation,
                                           "index": choice, "receipt": receipt}) + "\n")
@@ -61,8 +77,8 @@ def play(penta, job, fmt, run_id, pilot, catalog, output, max_actions):
     except Exception as error:
         record["errorType"] = type(error).__name__
         record["error"] = str(error)
-    record["durationSeconds"] = round(time.monotonic() - start, 3)
-    record["modelCalls"] = pilot.budget.calls - start_calls
+    record["durationSeconds"] = round(prior_duration + time.monotonic() - start, 3)
+    record["modelCalls"] = prior_calls + pilot.budget.calls - start_calls
     record["journal"] = f"journals/{game_id}.jsonl.gz"
     return record
 
@@ -77,7 +93,8 @@ def main():
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--max-games", type=int)
     parser.add_argument("--max-actions", type=int, default=10000)
-    parser.add_argument("--max-model-calls", type=int, default=100)
+    parser.add_argument("--max-model-calls", type=int, default=2000, help="Whole-run safety ceiling")
+    parser.add_argument("--max-model-calls-per-game", type=int, default=500)
     parser.add_argument("--pilot", choices=["codex", "file"], default="codex")
     parser.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default="low")
     parser.add_argument("--session", type=Path)
@@ -91,7 +108,7 @@ def main():
             MODELS[agent] = {**MODELS[agent], "effort": args.effort}
     if args.max_games is not None and (args.max_games < 2 or args.max_games % 2):
         parser.error("--max-games must be positive and even to preserve seat pairs")
-    if args.max_actions < 1 or args.max_model_calls < 0:
+    if args.max_actions < 1 or args.max_model_calls < 0 or args.max_model_calls_per_game < 1:
         parser.error("Action limit must be positive and call limit nonnegative")
     if args.pilot == "file" and args.session is None:
         parser.error("--pilot file requires --session")
@@ -127,8 +144,9 @@ def main():
             "deckLists": deck_lists, "pairs": args.pairs, "seed": args.seed,
             "maxGames": args.max_games, "maxActions": args.max_actions,
             "maxModelCalls": args.max_model_calls, "pilotBackend": args.pilot,
+            "maxModelCallsPerGame": args.max_model_calls_per_game,
             "promptHash": digest(PROMPT), "prompt": PROMPT, "schemaVersion": 1,
-            "harnessVersion": "1.0.0", "randomPolicy": "python-uniform-legal-actions-v1",
+            "harnessVersion": "1.1.0", "randomPolicy": "python-uniform-legal-actions-v1",
             "harnessSourceHash": digest({p.name: p.read_text() for p in sorted(Path(__file__).parent.glob("*.py"))}),
             "python": platform.python_version(), "platform": platform.platform()}
     created_at = datetime.now(timezone.utc).isoformat()
@@ -146,7 +164,8 @@ def main():
     errors = 0
     with (args.out / "games.jsonl").open("w") as stream:
         for fmt, job in plans:
-            record = play(penta, job, fmt, run_id, pilot, catalogs[fmt], args.out, args.max_actions)
+            record = play(penta, job, fmt, run_id, pilot, catalogs[fmt], args.out, args.max_actions,
+                          args.max_model_calls_per_game)
             stream.write(json.dumps(record) + "\n")
             stream.flush()
             count += 1
