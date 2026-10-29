@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import shutil
 import sys
@@ -42,5 +43,8 @@ for path in (root / "site").iterdir():
 payload = {"generatedAt": datetime.now(timezone.utc).isoformat(), "runs": runs,
            "models": MODELS, "rows": rows, "games": games, "coverageByRun": coverage}
 (args.out / "data.json").write_text(json.dumps(payload, separators=(",", ":")))
+revision = hashlib.sha256((args.out / "data.json").read_bytes() + (args.out / "app.js").read_bytes()).hexdigest()[:16]
+index = args.out / "index.html"
+index.write_text(index.read_text().replace('src="app.js"', f'src="app.js?v={revision}"'))
 (args.out / ".nojekyll").touch()
 print(f"Built dashboard: {len(runs)} runs, {len(games)} games")

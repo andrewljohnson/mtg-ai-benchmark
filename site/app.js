@@ -299,7 +299,7 @@ $("download").onclick = () => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 try {
-  const response = await fetch("data.json");
+  const response = await fetch(`data.json${new URL(import.meta.url).search}`, { cache: "no-store" });
   if (!response.ok) throw Error(`Result data unavailable (${response.status})`);
   data = await response.json();
   options(
