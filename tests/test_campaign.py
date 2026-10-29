@@ -57,3 +57,24 @@ class CampaignTests(unittest.TestCase):
         self.assertTrue(final["inferenceReady"])
         self.assertLessEqual((final["pairCI95"][1] - final["pairCI95"][0]) / 2, .05)
         self.assertLess(final["familyCI95"][0], final["pairCI95"][0])
+
+    def test_sol_cells_are_model_work_and_do_not_duplicate_luna_campaign(self):
+        full = cells(["random", "handcrafted", "luna", "sol"], ["A", "B"])
+        extension = [c for c in full if "sol" in [c["a"][0], c["b"][0]]]
+        original = cells(["random", "handcrafted", "luna"], ["A", "B"])
+        self.assertFalse({c["id"] for c in extension} & {c["id"] for c in original})
+        plan = {"cells": extension, "targetSeedPairs": 1}
+        self.assertTrue(next_pair(plan, FakeDB([]), "model"))
+        self.assertFalse(next_pair(plan, FakeDB([]), "baseline"))
+
+    def test_empty_new_campaign_does_not_import_another_campaign_ledger(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from benchmark.campaign import connect
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "plan.json").write_text(json.dumps({"id": "empty-isolated-test"}))
+            db = connect(directory)
+            self.assertEqual(db.execute("SELECT count(*) FROM games").fetchone()[0], 0)
+            db.close()

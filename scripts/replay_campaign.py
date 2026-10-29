@@ -19,6 +19,7 @@ if hashlib.sha256(args.journal.read_bytes()).hexdigest() != record["journalSHA25
 with gzip.open(args.journal, "rt") as stream:
     entries = [json.loads(line) for line in stream]
 config = {k: record[k] for k in ["agents", "decks", "format", "maxActions"]}
+config["agents"] = record.get("nativeAgents", config["agents"])
 config.update(seed=int(record["seed"]), policySeeds=[int(x) for x in record["policySeeds"]],
               replay=[e for e in entries if e["type"] == "action"])
 result = subprocess.run([str(root / "native/target/release/mtg-benchmark-host")],

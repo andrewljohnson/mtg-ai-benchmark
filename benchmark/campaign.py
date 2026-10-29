@@ -49,7 +49,8 @@ def connect(directory):
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("CREATE TABLE IF NOT EXISTS games(id TEXT PRIMARY KEY, cell TEXT, replicate INTEGER, swap INTEGER, record TEXT)")
     if db.execute("SELECT count(*) FROM games").fetchone()[0] == 0:
-        for path in sorted((ROOT / "results/old-school-v2/batches").glob("*.jsonl")):
+        campaign_id = json.loads((directory / "plan.json").read_text())["id"]
+        for path in sorted((ROOT / "results" / campaign_id / "batches").glob("*.jsonl")):
             for line in path.read_text().splitlines():
                 record = json.loads(line)
                 db.execute("INSERT OR IGNORE INTO games VALUES(?,?,?,?,?)",
@@ -60,7 +61,7 @@ def connect(directory):
 
 def next_pair(plan, db, kind):
     complete = {row[0]: json.loads(row[1]) for row in db.execute("SELECT id,record FROM games")}
-    eligible = [c for c in plan["cells"] if ("luna" in [c["a"][0], c["b"][0]]) == (kind == "model")]
+    eligible = [c for c in plan["cells"] if (any(a in MODELS for a in [c["a"][0], c["b"][0]])) == (kind == "model")]
     for replicate in range(plan["targetSeedPairs"]):
         for cell in eligible:
             jobs = [job_for(cell, replicate, swapped) for swapped in [False, True]]
@@ -162,16 +163,21 @@ def game(plan, job, directory, sessions, lane=None):
     pilots = {seat: FilePilot(sessions / seat, budget, timeout=900) for seat in ["p1", "p2"]}
     for seat in ["p1", "p2"]:
         atomic_json(sessions / seat / "observation.json", {"waiting": True})
-    atomic_json(directory / f"active-{lane or ('model' if 'luna' in job['agents'] else 'baseline')}.json",
+    atomic_json(directory / f"active-{lane or ('model' if any(a in MODELS for a in job['agents']) else 'baseline')}.json",
                 {"gameId": job["id"], "agents": job["agents"], "decks": job["decks"],
                  "sessions": str(sessions), "pid": os.getpid(), "status": "running"})
     started = time.monotonic()
     config = dict(job, replay=actions)
+    if plan.get("nativeModelRole"):
+        config["agents"] = [plan["nativeModelRole"] if a in plan["models"] else a for a in job["agents"]]
     host = subprocess.Popen([str(ROOT / "native/target/release/mtg-benchmark-host")], stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     record = dict(job, seed=str(job["seed"]), policySeeds=[str(x) for x in job["policySeeds"]],
                   runId=plan["id"], status="deferred", result=None, modelCalls=prior_calls,
                   journalVersion=2, startedAt=now())
+    if plan.get("nativeModelRole"):
+        record["nativeAgents"] = config["agents"]
+        record["models"] = {a: plan["models"][a] for a in job["agents"] if a in plan["models"]}
     host.stdin.write(json.dumps(config) + "\n")
     host.stdin.flush()
     sys.path.insert(0, str(ROOT / ".engine"))
@@ -195,7 +201,8 @@ def game(plan, job, directory, sessions, lane=None):
                         choice = pending["index"]
                     else:
                         choice, receipt = pilots[seat].choose(model_view(event["observation"], catalog),
-                                                             {"id": "luna", **plan["models"]["luna"]})
+                                                             {"id": job["agents"][0 if seat == "p1" else 1],
+                                                              **plan["models"][job["agents"][0 if seat == "p1" else 1]]})
                         journal.write(json.dumps({"type": "model", "seat": seat, "position": event["position"],
                                                   "observation": event["observation"], "index": choice, "receipt": receipt}) + "\n")
                     journal.flush()
@@ -229,7 +236,7 @@ def game(plan, job, directory, sessions, lane=None):
     for seat in ["p1", "p2"]:
         atomic_json(sessions / seat / "observation.json", {"done": True, "gameId": job["id"],
                                                          "status": record["status"], "result": record["result"]})
-    atomic_json(directory / f"active-{lane or ('model' if 'luna' in job['agents'] else 'baseline')}.json",
+    atomic_json(directory / f"active-{lane or ('model' if any(a in MODELS for a in job['agents']) else 'baseline')}.json",
                 {"gameId": job["id"], "status": record["status"], "pid": None})
     return record
 

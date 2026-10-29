@@ -11,11 +11,10 @@ import tarfile
 from pathlib import Path
 
 from .campaign import ROOT, connect, export_locked, initialize, now
-from .core import digest
+from .core import digest, MODELS
 from .pilots import atomic_json
 
 REPO = "andrewljohnson/mtg-ai-benchmark"
-TAG = "old-school-v2-journals"
 
 
 def gh(*args, check=True):
@@ -23,13 +22,14 @@ def gh(*args, check=True):
 
 
 def publish(directory):
-    with (directory / "publish.lock").open("w") as lock, (directory / "export.lock").open("w") as export_lock:
+    with (ROOT / ".campaign/publish.lock").open("w") as lock, (directory / "export.lock").open("w") as export_lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         fcntl.flock(export_lock, fcntl.LOCK_EX)
         branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
         if branch != "main":
             raise RuntimeError("Automatic publication requires the main branch")
         plan = initialize(directory)
+        tag = f"{plan['id']}-journals"
         db = connect(directory)
         records = [json.loads(r[0]) for r in db.execute("SELECT record FROM games")]
         pending = [r for r in records if r["status"] == "complete" and not r.get("journalArchive")]
@@ -38,13 +38,13 @@ def publish(directory):
         if previous.exists() and json.loads(previous.read_text()).get("snapshot") == snapshot and not pending:
             return
         if pending:
-            release = gh("release", "view", TAG, "--repo", REPO, "--json", "assets", check=False)
+            release = gh("release", "view", tag, "--repo", REPO, "--json", "assets", check=False)
             if release.returncode:
                 notes = directory / "release-notes.txt"
-                notes.write_text("Full replayable journals for the Old School v2 evaluation campaign. Every archive is content-addressed; per-game and archive SHA-256 values are recorded in the public batch ledgers. No model credentials or account telemetry are included.\n")
-                gh("release", "create", TAG, "--repo", REPO, "--title", "Old School v2 game journals",
+                notes.write_text("Full replayable journals for this evaluation campaign. Every archive is content-addressed; per-game and archive SHA-256 values are recorded in the public batch ledgers. No model credentials or account telemetry are included.\n")
+                gh("release", "create", tag, "--repo", REPO, "--title", f"{plan['id']} game journals",
                    "--notes-file", str(notes), "--target", "main")
-                release = gh("release", "view", TAG, "--repo", REPO, "--json", "assets")
+                release = gh("release", "view", tag, "--repo", REPO, "--json", "assets")
             existing = {a["name"] for a in json.loads(release.stdout)["assets"]}
             for offset in range(0, len(pending), 100):
                 batch = sorted(pending[offset:offset + 100], key=lambda r: r["id"])
@@ -58,9 +58,9 @@ def publish(directory):
                             output.add(directory / record["journal"], arcname=record["journal"])
                 checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
                 if name not in existing:
-                    gh("release", "upload", TAG, str(archive), "--repo", REPO)
+                    gh("release", "upload", tag, str(archive), "--repo", REPO)
                 for record in batch:
-                    record.update({"journalArchive": f"https://github.com/{REPO}/releases/download/{TAG}/{name}",
+                    record.update({"journalArchive": f"https://github.com/{REPO}/releases/download/{tag}/{name}",
                                    "journalArchiveSHA256": checksum})
                     db.execute("UPDATE games SET record=? WHERE id=?", (json.dumps(record), record["id"]))
                 db.commit()
@@ -78,7 +78,7 @@ def publish(directory):
         subprocess.run(["git", "push", "origin", "main"], cwd=ROOT, check=True)
         atomic_json(directory / "last-publication.json", {"commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
                     "snapshot": snapshot, "completedGames": sum(r["status"] == "complete" for r in records),
-                    "modelGames": sum(r["status"] == "complete" and "luna" in r["agents"] for r in records), "publishedAt": now()})
+                    "modelGames": sum(r["status"] == "complete" and any(a in MODELS for a in r["agents"]) for r in records), "publishedAt": now()})
 
 
 def main():
@@ -103,7 +103,7 @@ def main():
             published = args.directory / "last-publication.json"
             previous = json.loads(published.read_text()) if published.exists() else {}
             completed = sum(r["status"] == "complete" for r in records)
-            model = sum(r["status"] == "complete" and "luna" in r["agents"] for r in records)
+            model = sum(r["status"] == "complete" and any(a in MODELS for a in r["agents"]) for r in records)
             delta = completed - previous.get("completedGames", 0)
             if delta > 0 and (delta >= 50 or model > previous.get("modelGames", 0) or time.monotonic() - last >= 900):
                 try:

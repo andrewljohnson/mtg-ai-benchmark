@@ -204,7 +204,7 @@ function render() {
     $("coverage-ledger").innerHTML =
       `Showing ${Math.min(100, filtered.length)} of ${filtered.length} matchups; use deck filters to narrow. <a href="https://github.com/andrewljohnson/mtg-ai-benchmark/tree/main/results/${encodeURIComponent(run.resultDirectory)}/batches">All game batches ↗</a> · <a href="https://github.com/andrewljohnson/mtg-ai-benchmark/blob/main/results/${encodeURIComponent(run.resultDirectory)}/coverage.json">Full coverage data ↗</a>. Standings count pilot-seat appearances; a pilot mirror contributes two appearances but global game totals count it once. The ledger below is a recent window; full journals are linked from batch records.`;
     $("coverage-notice").textContent =
-      `Full Old School campaign · 3 pilots × 15 decks, including all mirrors · ${finished.toLocaleString()} / ${run.targetGames.toLocaleString()} games complete · ${ready} / ${coverage.length} matchup targets reached. Evaluation only; no model weights are trained. Subscription-only Luna; queued as allowance permits.`;
+      `Old School campaign · ${run.agents.length} pilots × ${run.decks.length} decks · ${coverage.length} matchup combinations · ${finished.toLocaleString()} / ${run.targetGames.toLocaleString()} games complete · ${ready} / ${coverage.length} matchup targets reached. Evaluation only; no model weights are trained. Subscription-only model pilots; queued as allowance permits.`;
   } else {
     $("coverage-summary").textContent = "Legacy pilot run";
     $("coverage-rows").innerHTML =
