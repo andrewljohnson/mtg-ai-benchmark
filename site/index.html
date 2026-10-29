@@ -1,21 +1,312 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="An open, reproducible benchmark of AI pilots playing Magic: The Gathering in Penta. Real games, public data, and transparent methodology."><title>MTG AI Benchmark · The testing ground</title><link rel="stylesheet" href="styles.css"></head>
-<body>
-<header><a href="#" class="brand"><span class="sigil" aria-hidden="true">✳</span> MTG AI <b>BENCHMARK</b></a><nav aria-label="Main navigation"><a href="#arena">Results</a><a href="#method">Methodology</a><a href="https://github.com/andrewljohnson/mtg-ai-benchmark" class="source">GitHub ↗</a></nav></header>
-<main>
-<section class="hero"><div class="eyebrow"><span class="dot"></span> AN OPEN EXPERIMENT IN MACHINE STRATEGY</div><h1>Good at reasoning.<br><em>But can it play Magic?</em></h1><p class="intro">The same decks. The same seeds. A different mind behind every move. Measuring how AI pilots compete in Magic: The Gathering.</p><div class="hero-bottom"><a class="primary" href="#arena">Explore the results <span>↓</span></a><span class="engine">POWERED BY <a href="https://github.com/lacker/penta">PENTA ↗</a><small>Headless · deterministic · hidden-information-safe</small></span></div><div class="orbit" aria-hidden="true"><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div><span class="mana m1">W</span><span class="mana m2">U</span><span class="mana m3">B</span><span class="mana m4">R</span><span class="mana m5">G</span><div class="orbit-core">AI<span>VS.</span>MTG</div></div></section>
-<section class="stats" aria-label="Benchmark overview"><div><span id="games-stat">—</span><small>COMPLETED GAMES</small></div><div><span id="decks-stat">—</span><small>DECKS TESTED</small></div><div><span id="pilots-stat">—</span><small>PILOTS WITH DATA</small></div><div><span class="green">100%</span><small>PUBLIC MATCH RECORDS</small></div></section>
-<section id="arena" class="arena"><div class="section-title"><div><div class="eyebrow">01 / THE ARENA</div><h2>Let the games speak.</h2></div><span id="run-status" class="badge">Loading real results</span></div><div class="notice" id="coverage-notice">Loading benchmark coverage…</div>
-<div class="filters"><label>Experiment<select id="run"></select></label><label>Format<select id="format"></select></label><label>Pilot's deck<select id="deck"></select></label><label>Opponent's deck<select id="opponent-deck"></select></label><label>Starting seat<select id="seat"><option value="">Both seats</option><option value="p1">On the play · p1</option><option value="p2">On the draw · p2</option></select></label><button id="reset" class="reset">Reset filters ↺</button></div>
-<div class="tabs" role="tablist" aria-label="Results view"><button role="tab" aria-selected="true" id="tab-leaderboard" aria-controls="leaderboard">Pilot standings</button><button role="tab" aria-selected="false" id="tab-matchups" aria-controls="matchups">Head-to-head</button><button role="tab" aria-selected="false" id="tab-decks" aria-controls="decks">Deck matchups</button><button role="tab" aria-selected="false" id="tab-games" aria-controls="games">Game ledger</button></div>
-<div id="leaderboard" role="tabpanel" aria-labelledby="tab-leaderboard" class="panel"><div class="panel-heading"><h3>Pilot standings</h3><span>Strict wins / completed games · draws stay in the denominator</span></div><div class="table-wrap"><table><thead><tr><th>RANK / PILOT</th><th>WIN RATE</th><th>95% INTERVAL</th><th>W / L / D</th><th>GAMES</th><th>UNFINISHED</th></tr></thead><tbody id="standings"></tbody></table></div><p class="footnote">Standings reflect the selected experiment and its opponent mix. Small pilots are exploratory; rates are not evidence of model superiority.</p></div>
-<div id="matchups" role="tabpanel" aria-labelledby="tab-matchups" class="panel" hidden><div class="panel-heading"><h3>Who beats whom?</h3><span>Row pilot's strict win rate against the column pilot</span></div><div id="matrix" class="table-wrap"></div><p class="footnote">An em dash means no completed games, never a 0% win rate. Baselines and model pilots are shown together only when the selected run contains them.</p></div>
-<div id="decks" role="tabpanel" aria-labelledby="tab-decks" class="panel" hidden><div class="panel-heading"><h3>Every deck has a matchup.</h3><label>Inspect pilot <select id="deck-agent"></select></label></div><div id="deck-matrix" class="table-wrap"></div><p class="footnote">Rows are the selected pilot's decks; columns are opposing decks. Each cell pools only the opponents and seats present in the selected experiment.</p></div>
-<div id="games" role="tabpanel" aria-labelledby="tab-games" class="panel" hidden><div class="panel-heading"><h3>The game ledger</h3><button id="download" class="reset">Download filtered JSON ↓</button></div><div class="table-wrap"><table><thead><tr><th>GAME</th><th>ON THE PLAY</th><th>ON THE DRAW</th><th>RESULT</th><th>SEED</th><th>MODEL CALLS</th></tr></thead><tbody id="game-rows"></tbody></table></div><div class="pager"><button class="reset" id="prev">← Previous</button><span id="page-label"></span><button class="reset" id="next">Next →</button></div></div>
-</section>
-<section class="roster"><div><div class="eyebrow">02 / THE CONTENDERS</div><h2>Different minds.<br>One playing field.</h2><p>Model identity and reasoning effort travel with every run. No substituted models. No invented scores.</p></div><div id="pilot-cards" class="pilot-cards"></div></section>
-<section id="method" class="method"><div class="eyebrow">03 / THE RULES OF THE EXPERIMENT</div><h2>A result you can interrogate.</h2><div class="method-grid"><article><span>01</span><h3>Control the matchup</h3><p>Each selected pilot plays every ordered deck pairing against each other selected pilot. The same seed is played twice, with pilots and their decks swapping seats. Games use Penta's one-conclusion mode, without sideboarding.</p></article><article><span>02</span><h3>Respect hidden information</h3><p>Pilots see only their own redacted observation, legal actions, and a reference for visible cards. No seed, opponent hand, shuffled library, or unredacted game state enters the decision prompt. Unique legal moves advance automatically.</p></article><article><span>03</span><h3>Keep the receipts</h3><p>Public run manifests pin the Penta commit, simulation fingerprint, prompt, reasoning effort, decks, and limits. Compressed journals retain observations and submitted actions. Model calls are capped; errors and cutoffs are reported separately.</p></article><article><span>04</span><h3>Show the uncertainty</h3><p>Win rate means wins divided by all completed games, including draws. Wilson 95% intervals describe observed strict wins; paired seeds introduce dependence, so these are descriptive, not paired significance tests. Unfinished games never become losses or draws.</p></article></div><div class="limits"><b>What this measures</b><p>Decision quality in the supported Penta simulation, not mastery of every Magic rule. Engine coverage varies by format and card. Subscription pilots, command-line pilots, and future API pilots are distinct conditions and should be compared in matched runs. This project is independent of Wizards of the Coast and OpenAI.</p></div><details><summary>Inspect the selected run manifest <span>+</span></summary><pre id="manifest"></pre></details></section>
-<footer><div class="brand">✳ MTG AI BENCHMARK</div><span>Open code. Real games. Room to improve.</span><a href="https://github.com/andrewljohnson/mtg-ai-benchmark">Reproduce the experiment ↗</a></footer>
-</main><div id="error" role="alert" hidden></div><script type="module" src="app.js"></script>
-</body></html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="An open, reproducible benchmark of AI pilots playing Magic: The Gathering in Penta. Real games, public data, and transparent methodology."
+    />
+    <title>MTG AI Benchmark · The testing ground</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <a href="#" class="brand"
+        ><span class="sigil" aria-hidden="true">✳</span> MTG AI
+        <b>BENCHMARK</b></a
+      >
+      <nav aria-label="Main navigation">
+        <a href="#arena">Results</a><a href="#method">Methodology</a
+        ><a
+          href="https://github.com/andrewljohnson/mtg-ai-benchmark"
+          class="source"
+          >GitHub ↗</a
+        >
+      </nav>
+    </header>
+    <main>
+      <section class="hero">
+        <div class="eyebrow">
+          <span class="dot"></span> AN OPEN EXPERIMENT IN MACHINE STRATEGY
+        </div>
+        <h1>Good at reasoning.<br /><em>But can it play Magic?</em></h1>
+        <p class="intro">
+          The same decks. The same seeds. A different mind behind every move.
+          Measuring how AI pilots compete in Magic: The Gathering.
+        </p>
+        <div class="hero-bottom">
+          <a class="primary" href="#arena">Explore the results <span>↓</span></a
+          ><span class="engine"
+            >POWERED BY <a href="https://github.com/lacker/penta">PENTA ↗</a
+            ><small
+              >Headless · deterministic · hidden-information-safe</small
+            ></span
+          >
+        </div>
+        <div class="orbit" aria-hidden="true">
+          <div class="ring r1"></div>
+          <div class="ring r2"></div>
+          <div class="ring r3"></div>
+          <span class="mana m1">W</span><span class="mana m2">U</span
+          ><span class="mana m3">B</span><span class="mana m4">R</span
+          ><span class="mana m5">G</span>
+          <div class="orbit-core">AI<span>VS.</span>MTG</div>
+        </div>
+      </section>
+      <section class="stats" aria-label="Benchmark overview">
+        <div><span id="games-stat">—</span><small>COMPLETED GAMES</small></div>
+        <div><span id="decks-stat">—</span><small>DECKS TESTED</small></div>
+        <div>
+          <span id="pilots-stat">—</span><small>PILOTS WITH DATA</small>
+        </div>
+        <div>
+          <span class="green">100%</span><small>PUBLIC MATCH RECORDS</small>
+        </div>
+      </section>
+      <section id="arena" class="arena">
+        <div class="section-title">
+          <div>
+            <div class="eyebrow">01 / THE ARENA</div>
+            <h2>Let the games speak.</h2>
+          </div>
+          <span id="run-status" class="badge">Loading real results</span>
+        </div>
+        <div class="notice" id="coverage-notice">
+          Loading benchmark coverage…
+        </div>
+        <div class="filters">
+          <label>Experiment<select id="run"></select></label
+          ><label>Format<select id="format"></select></label
+          ><label>Pilot's deck<select id="deck"></select></label
+          ><label>Opponent's deck<select id="opponent-deck"></select></label
+          ><label
+            >Starting seat<select id="seat">
+              <option value="">Both seats</option>
+              <option value="p1">On the play · p1</option>
+              <option value="p2">On the draw · p2</option>
+            </select></label
+          ><button id="reset" class="reset">Reset filters ↺</button>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Results view">
+          <button
+            role="tab"
+            aria-selected="true"
+            id="tab-leaderboard"
+            aria-controls="leaderboard"
+          >
+            Pilot standings</button
+          ><button
+            role="tab"
+            aria-selected="false"
+            id="tab-matchups"
+            aria-controls="matchups"
+          >
+            Head-to-head</button
+          ><button
+            role="tab"
+            aria-selected="false"
+            id="tab-decks"
+            aria-controls="decks"
+          >
+            Deck matchups</button
+          ><button
+            role="tab"
+            aria-selected="false"
+            id="tab-games"
+            aria-controls="games"
+          >
+            Game ledger
+          </button>
+        </div>
+        <div
+          id="leaderboard"
+          role="tabpanel"
+          aria-labelledby="tab-leaderboard"
+          class="panel"
+        >
+          <div class="panel-heading">
+            <h3>Pilot standings</h3>
+            <span
+              >Strict wins / completed games · draws stay in the
+              denominator</span
+            >
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>RANK / PILOT</th>
+                  <th>WIN RATE</th>
+                  <th>95% INTERVAL</th>
+                  <th>W / L / D</th>
+                  <th>GAMES</th>
+                  <th>UNFINISHED</th>
+                </tr>
+              </thead>
+              <tbody id="standings"></tbody>
+            </table>
+          </div>
+          <p class="footnote">
+            Standings reflect the selected experiment and its opponent mix.
+            Small pilots are exploratory; rates are not evidence of model
+            superiority.
+          </p>
+        </div>
+        <div
+          id="matchups"
+          role="tabpanel"
+          aria-labelledby="tab-matchups"
+          class="panel"
+          hidden
+        >
+          <div class="panel-heading">
+            <h3>Who beats whom?</h3>
+            <span>Row pilot's strict win rate against the column pilot</span>
+          </div>
+          <div id="matrix" class="table-wrap"></div>
+          <p class="footnote">
+            An em dash means no completed games, never a 0% win rate. Baselines
+            and model pilots are shown together only when the selected run
+            contains them.
+          </p>
+        </div>
+        <div
+          id="decks"
+          role="tabpanel"
+          aria-labelledby="tab-decks"
+          class="panel"
+          hidden
+        >
+          <div class="panel-heading">
+            <h3>Every deck has a matchup.</h3>
+            <label
+              >Inspect pilot
+              <select id="deck-agent"></select
+            ></label>
+          </div>
+          <div id="deck-matrix" class="table-wrap"></div>
+          <p class="footnote">
+            Rows are the selected pilot's decks; columns are opposing decks.
+            Each cell pools only the opponents and seats present in the selected
+            experiment.
+          </p>
+        </div>
+        <div
+          id="games"
+          role="tabpanel"
+          aria-labelledby="tab-games"
+          class="panel"
+          hidden
+        >
+          <div class="panel-heading">
+            <h3>The game ledger</h3>
+            <button id="download" class="reset">
+              Download filtered JSON ↓
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>GAME</th>
+                  <th>ON THE PLAY</th>
+                  <th>ON THE DRAW</th>
+                  <th>RESULT</th>
+                  <th>SEED</th>
+                  <th>MODEL CALLS</th>
+                </tr>
+              </thead>
+              <tbody id="game-rows"></tbody>
+            </table>
+          </div>
+          <div class="pager">
+            <button class="reset" id="prev">← Previous</button
+            ><span id="page-label"></span
+            ><button class="reset" id="next">Next →</button>
+          </div>
+        </div>
+      </section>
+      <section class="roster">
+        <div>
+          <div class="eyebrow">02 / THE CONTENDERS</div>
+          <h2>Different minds.<br />One playing field.</h2>
+          <p>
+            Model identity and reasoning effort travel with every run. No
+            substituted models. No invented scores.
+          </p>
+        </div>
+        <div id="pilot-cards" class="pilot-cards"></div>
+      </section>
+      <section id="method" class="method">
+        <div class="eyebrow">03 / THE RULES OF THE EXPERIMENT</div>
+        <h2>A result you can interrogate.</h2>
+        <div class="method-grid">
+          <article>
+            <span>01</span>
+            <h3>Control the matchup</h3>
+            <p>
+              Each selected pilot plays every ordered deck pairing against each
+              other selected pilot. The same seed is played twice, with pilots
+              and their decks swapping seats. Games use Penta's one-conclusion
+              mode, without sideboarding.
+            </p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Respect hidden information</h3>
+            <p>
+              Pilots see only their own redacted observation, legal actions, and
+              a reference for visible cards. No seed, opponent hand, shuffled
+              library, or unredacted game state enters the decision prompt.
+              Unique legal moves advance automatically.
+            </p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Keep the receipts</h3>
+            <p>
+              Public run manifests pin the Penta commit, simulation fingerprint,
+              prompt, reasoning effort, decks, and limits. Compressed journals
+              retain observations and submitted actions. Model calls are capped;
+              errors and cutoffs are reported separately.
+            </p>
+          </article>
+          <article>
+            <span>04</span>
+            <h3>Show the uncertainty</h3>
+            <p>
+              Win rate means wins divided by all completed games, including
+              draws. Wilson 95% intervals describe observed strict wins; paired
+              seeds introduce dependence, so these are descriptive, not paired
+              significance tests. Unfinished games never become losses or draws.
+            </p>
+          </article>
+        </div>
+        <div class="limits">
+          <b>What this measures</b>
+          <p>
+            Decision quality in the supported Penta simulation, not mastery of
+            every Magic rule. Engine coverage varies by format and card.
+            Subscription pilots, command-line pilots, and future API pilots are
+            distinct conditions and should be compared in matched runs. This
+            project is independent of Wizards of the Coast and OpenAI.
+          </p>
+        </div>
+        <details>
+          <summary>Inspect the selected run manifest <span>+</span></summary>
+          <pre id="manifest"></pre>
+        </details>
+      </section>
+      <footer>
+        <div class="brand">✳ MTG AI BENCHMARK</div>
+        <span>Open code. Real games. Room to improve.</span
+        ><a href="https://github.com/andrewljohnson/mtg-ai-benchmark"
+          >Reproduce the experiment ↗</a
+        >
+      </footer>
+    </main>
+    <div id="error" role="alert" hidden></div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

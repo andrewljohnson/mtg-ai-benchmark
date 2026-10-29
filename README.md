@@ -8,7 +8,7 @@ The question: how well do Luna, Sol, Astra, and other models pilot each deck, ag
 
 ## Current scope
 
-Initial release: a complete Old School baseline matrix across all 15 built-in decks, plus a small subscription-based Luna pilot. These are calibration and feasibility results, **not a completed model leaderboard**. Sol, Astra, Terra, additional decks, and direct model-versus-model results are pending actual runs.
+Initial release: a complete Old School baseline matrix across all 15 built-in decks, plus a subscription-based Luna pilot: one completed win against random and one game truncated by the 120-decision cap. These are calibration and feasibility results, **not a completed model leaderboard**. Sol, Astra, Terra, additional decks, and direct model-versus-model results are pending actual runs.
 
 The harness discovers all built-in decks in each selected format. `--format all` selects every constructed/Commander profile with registered built-in decks at the pinned commit; profiles with no built-in decks and fixed-list cubes are excluded. Initial published games are Old School only.
 
@@ -57,7 +57,7 @@ python3 -m benchmark.run --agents luna,sol,astra,random,handcrafted \
   --out results/my-round-robin
 ```
 
-Configured defaults are `gpt-6-luna`, `gpt-6.1-sol`, `gpt-6-astra`, and `gpt-6.1-terra`, all at low reasoning effort. See `benchmark/core.py`. Change configuration deliberately and retain the resulting run manifest.
+Configured defaults are `gpt-6-luna`, `gpt-6.1-sol`, `gpt-6-astra`, and `gpt-6.1-terra`, all at low reasoning effort. Use `--effort medium` (or `high`, `xhigh`, `max`) to compare reasoning settings in a separate run. See `benchmark/core.py` for model IDs. Retain the resulting run manifest.
 
 The Codex adapter uses an ephemeral read-only session per nonforced decision, disables shell and web search, ignores user configuration, removes API-key environment variables, validates the structured answer against legal indices, and records usage receipts. It does not call the OpenAI API. Subscription allowance may still be consumed; a call cap is not a dollar or token cap. Do not enable credit overage to run an unattended benchmark.
 
