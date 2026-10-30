@@ -180,6 +180,7 @@ function render() {
       ? `Exploratory model pilot · ${modelAgents.map((a) => names[a]).join(", ")} · ${run.billing}. This sample is too small to rank models. Other model/deck matchups remain untested. ${selected.filter((g) => g.status !== "complete").length} unfinished games are disclosed.`
       : `Baseline calibration · ${Object.values(run.deckLists).reduce((n, d) => n + d.length, 0)} decks selected · random versus Penta's handcrafted policy. Model scores are pending until real games are recorded. ${run.pairs} seed pair${run.pairs === 1 ? "" : "s"} per deck matchup.`;
   const coverage = data.coverageByRun?.[run?.runId] ?? [];
+  const evidenceLinks = (run?.sourceRuns ?? (run ? [run] : [])).map((r) => `<a href="https://github.com/andrewljohnson/mtg-ai-benchmark/tree/main/results/${encodeURIComponent(r.resultDirectory)}">${esc(r.agents.includes("sol") ? "Sol worker records" : "Luna and control worker records")} ↗</a>`).join(" · ");
   $("leaderboard").querySelector(".footnote").textContent = coverage.length
     ? "Descriptive pilot-seat standings only: a pilot mirror contributes both a win and a loss (or two draws). Global totals count each physical game once. Use Coverage & confidence for independent paired samples and adjusted inference."
     : "Standings reflect the selected experiment and its opponent mix. Small pilots are exploratory; rates are not evidence of model superiority.";
@@ -201,8 +202,7 @@ function render() {
           `<tr><td>${esc(names[c.a[0]])}<div class="quiet">${esc(c.a[1])}</div></td><td>${esc(names[c.b[0]])}<div class="quiet">${esc(c.b[1])}</div></td><td>${c.pairs} / ${run.targetSeedPairs}</td><td>${c.completedGames} / ${run.targetGamesPerCell}</td><td>${percent(c.scoreRate)}</td><td>${c.pairCI95 ? c.pairCI95.map(percent).join(" – ") : "—"}</td><td>${c.familyCI95 ? c.familyCI95.map(percent).join(" – ") : "—"}</td><td>${c.mirrorControl ? "Mirror control" : c.inferenceReady ? "Fixed target reached" : "Exploratory"}</td></tr>`,
       )
       .join("");
-    $("coverage-ledger").innerHTML =
-      `Showing ${Math.min(100, filtered.length)} of ${filtered.length} matchups; use deck filters to narrow. <a href="https://github.com/andrewljohnson/mtg-ai-benchmark/tree/main/results/${encodeURIComponent(run.resultDirectory)}/batches">All game batches ↗</a> · <a href="https://github.com/andrewljohnson/mtg-ai-benchmark/blob/main/results/${encodeURIComponent(run.resultDirectory)}/coverage.json">Full coverage data ↗</a>. Standings count pilot-seat appearances; a pilot mirror contributes two appearances but global game totals count it once. The ledger below is a recent window; full journals are linked from batch records.`;
+    $("coverage-ledger").innerHTML = `Showing ${Math.min(100, filtered.length)} of ${filtered.length} matchups; use deck filters to narrow. ${evidenceLinks}. One benchmark with parallel worker queues; records retain their source and replay journals. Standings count seat appearances; mirrors contribute two appearances per physical game. Family intervals account for all ${coverage.length} matchups.`;
     $("coverage-notice").textContent =
       `Old School campaign · ${run.agents.length} pilots × ${run.decks.length} decks · ${coverage.length} matchup combinations · ${finished.toLocaleString()} / ${run.targetGames.toLocaleString()} games complete · ${ready} / ${coverage.length} matchup targets reached. Evaluation only; no model weights are trained. Subscription-only model pilots; queued as allowance permits.`;
   } else {
@@ -211,15 +211,6 @@ function render() {
       '<tr><td colspan="8">This legacy run predates the full campaign. Select Old School v2 for complete permutation coverage.</td></tr>';
     $("coverage-ledger").textContent = "";
   }
-  $("campaign-switcher").innerHTML = activeRuns.filter((r) => r.coverageFile || r.pilotUniqueGames).map((r) => {
-    const modelCounts = Object.entries(r.pilotUniqueGames ?? {}).filter(([a]) => data.models[a]).map(([a, n]) => `${names[a] ?? a}: ${n} unique games`).join(" · ");
-    return `<button class="campaign-choice" data-run="${esc(r.runId)}" aria-pressed="${r.runId === run?.runId}"><strong>${esc(r.runId === "old-school-v2" ? "Luna campaign" : r.runId === "old-school-sol-v1" ? "Sol campaign" : r.runId)}</strong><span>${esc(modelCounts)}</span></button>`;
-  }).join("");
-  for (const button of $("campaign-switcher").querySelectorAll("button")) button.onclick = () => {
-    $("run").value = button.dataset.run;
-    updateFilters();
-    render();
-  };
   $("pilot-cards").innerHTML = Object.entries(data.models)
     .map(([a, m]) => {
       const games = (run ? [run] : []).reduce(
@@ -315,7 +306,7 @@ try {
     "run",
     data.runs.map((r) => [
       r.runId,
-      `${r.agents.map((a) => names[a] ?? a).join(" vs ")} · ${r.runId}${r.supersededByRunId ? " · archived" : ""}`,
+      `${r.runId === "old-school-benchmark" ? "MTG AI Benchmark · Random, Handcrafted, Luna & Sol" : r.agents.map((a) => names[a] ?? a).join(" vs ") + " · " + r.runId}${r.supersededByRunId ? " · archived" : ""}`,
     ]),
   );
   updateFilters();
