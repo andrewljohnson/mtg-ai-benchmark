@@ -8,6 +8,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("session", type=Path)
 parser.add_argument("--request", type=int)
 parser.add_argument("--index", type=int)
+parser.add_argument("--section", choices=["choices", "state", "cards"])
 args = parser.parse_args()
 cursor = args.session / "client-cursor.json"
 last_request = args.request
@@ -37,6 +38,15 @@ while time.monotonic() < deadline:
                     {k: v for k, v in card.items() if k not in {"printings", "structure"}}
                     for card in value["view"]["cardReference"]
                 ]
+            if args.section and "view" in value:
+                view = value["view"]
+                observation = view["observation"]
+                if args.section == "choices":
+                    value["view"] = {"legalActions": observation["legalActions"]}
+                elif args.section == "state":
+                    value["view"] = {"observation": {k: v for k, v in observation.items() if k != "legalActions"}}
+                else:
+                    value["view"] = {"cardReference": view["cardReference"]}
             print(json.dumps(value))
             break
     time.sleep(.1)
