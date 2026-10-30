@@ -154,7 +154,12 @@
               <tbody id="standings"></tbody>
             </table>
           </div>
-          <p class="footnote">
+          <section class="bot-grid" aria-label="Bot versus bot win rates">
+            <h3>Bot versus bot</h3>
+            <p class="footnote">Each row bot’s win rate against each column bot. Cells include completed seat results; mirrors count both seats.</p>
+            <div id="overview-matrix" class="table-wrap"></div>
+          </section>
+          <p class="footnote" id="standings-note">
             Standings reflect the selected experiment and its opponent mix.
             Small pilots are exploratory; rates are not evidence of model
             superiority.
@@ -168,8 +173,8 @@
           hidden
         >
           <div class="panel-heading">
-            <h3>Who beats whom?</h3>
-            <span>Row pilot's strict win rate against the column pilot</span>
+            <h3>Bot versus bot</h3>
+            <span>Row bot’s win rate against the column bot</span>
           </div>
           <div id="matrix" class="table-wrap"></div>
           <p class="footnote">
@@ -186,18 +191,15 @@
           hidden
         >
           <div class="panel-heading">
-            <h3>Every deck has a matchup.</h3>
-            <label
-              >Inspect pilot
-              <select id="deck-agent"></select
-            ></label>
+            <h3>Deck win rates by bot</h3>
+            <div class="deck-grid-filters">
+              <label>Show bots<select id="deck-agent" aria-label="Show bots"></select></label>
+              <label>Opponent bot<select id="deck-opponent" aria-label="Opponent bot"></select></label>
+            </div>
           </div>
-          <div id="deck-matrix" class="table-wrap"></div>
-          <p class="footnote">
-            Rows are the selected pilot's decks; columns are opposing decks.
-            Each cell pools only the opponents and seats present in the selected
-            experiment.
-          </p>
+          <p class="footnote">Wins divided by completed seat results, including draws. An em dash means untested. The summary pools opposing decks; the grids below split every deck matchup. Results follow the deck and starting-seat filters above.</p>
+          <div id="deck-summary" class="table-wrap" aria-label="Bot win rates by deck"></div>
+          <div id="deck-matrix"></div>
         </div>
         <div
           id="games"

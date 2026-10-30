@@ -79,7 +79,9 @@ function updateFilters() {
   options(
     "deck-agent",
     (run?.agents ?? []).map((a) => [a, names[a] ?? a]),
+    "All bots",
   );
+  options("deck-opponent", (run?.agents ?? []).map((a) => [a, names[a] ?? a]), "All opponent bots");
 }
 function selectedRows() {
   return data.rows.filter(
@@ -95,10 +97,10 @@ function selectedRows() {
 function heat(c) {
   const n = total(c),
     rate = n ? c.wins / n : null;
-  return `<td class="heat-cell" style="background:${n ? `rgba(162,207,108,${0.04 + 0.28 * rate})` : "#151b17"}" title="${c.wins} wins, ${c.losses} losses, ${c.draws} draws, ${c.errors + c.truncated} unfinished">${percent(rate)}<small>${n ? `${n} games` : "No completed games"}</small></td>`;
+  return `<td class="heat-cell" style="background:${n ? `rgba(162,207,108,${0.04 + 0.28 * rate})` : "#151b17"}" title="${c.wins} wins, ${c.losses} losses, ${c.draws} draws, ${c.errors + c.truncated} unfinished">${percent(rate)}<small>${n ? `${n} seat results` : "No completed games"}</small></td>`;
 }
-function matrix(rowNames, columnNames, match) {
-  return `<table class="matrix"><thead><tr><th>PILOT / OPPONENT →</th>${columnNames.map((n) => `<th>${esc(names[n] ?? n)}</th>`).join("")}</tr></thead><tbody>${rowNames.map((a) => `<tr><th scope="row">${esc(names[a] ?? a)}</th>${columnNames.map((b) => heat(counts(match(a, b)))).join("")}</tr>`).join("")}</tbody></table>`;
+function matrix(rowNames, columnNames, match, corner = "BOT / OPPONENT →") {
+  return `<table class="matrix"><thead><tr><th>${esc(corner)}</th>${columnNames.map((n) => `<th>${esc(names[n] ?? n)}</th>`).join("")}</tr></thead><tbody>${rowNames.map((a) => `<tr><th scope="row">${esc(names[a] ?? a)}</th>${columnNames.map((b) => heat(counts(match(a, b)))).join("")}</tr>`).join("")}</tbody></table>`;
 }
 function render() {
   const run = selectedRun(),
@@ -122,16 +124,22 @@ function render() {
       })
       .join("") ||
     '<tr><td colspan="6">No games match these filters.</td></tr>';
-  $("matrix").innerHTML = matrix(agents, agents, (a, b) =>
+  const botMatrix = matrix(agents, agents, (a, b) =>
     rows.filter((r) => r.agent === a && r.opponent === b),
   );
+  $("matrix").innerHTML = botMatrix;
+  $("overview-matrix").innerHTML = botMatrix;
   const decks = run?.deckLists[$("format").value] ?? [],
-    agent = $("deck-agent").value;
-  $("deck-matrix").innerHTML = matrix(decks, decks, (a, b) =>
-    rows.filter(
-      (r) => r.agent === agent && r.deck === a && r.opponentDeck === b,
-    ),
-  );
+    agent = $("deck-agent").value,
+    opponent = $("deck-opponent").value,
+    deckRows = rows.filter((r) => !opponent || r.opponent === opponent),
+    shownAgents = agent ? [agent] : agents;
+  $("deck-summary").innerHTML = matrix(shownAgents, decks, (a, d) =>
+    deckRows.filter((r) => r.agent === a && r.deck === d), "BOT / ITS DECK →");
+  $("deck-matrix").innerHTML = shownAgents.map((a) => {
+    const pilotRows = deckRows.filter((r) => r.agent === a);
+    return `<section class="deck-grid" aria-label="${esc(names[a] ?? a)} deck win rates"><h3>${esc(names[a] ?? a)}</h3><p class="footnote">Row: ${esc(names[a] ?? a)}’s deck · Column: opponent’s deck · ${esc(opponent ? names[opponent] : "All opponent bots")}</p><div class="table-wrap">${matrix(decks, decks, (d, o) => pilotRows.filter((r) => r.deck === d && r.opponentDeck === o), "DECK / OPPONENT DECK →")}</div></section>`;
+  }).join("");
   filteredGames = data.games.filter(
     (g) =>
       g.runId === $("run").value &&
@@ -181,7 +189,7 @@ function render() {
       : `Baseline calibration · ${Object.values(run.deckLists).reduce((n, d) => n + d.length, 0)} decks selected · random versus Penta's handcrafted policy. Model scores are pending until real games are recorded. ${run.pairs} seed pair${run.pairs === 1 ? "" : "s"} per deck matchup.`;
   const coverage = data.coverageByRun?.[run?.runId] ?? [];
   const evidenceLinks = (run?.sourceRuns ?? (run ? [run] : [])).map((r) => `<a href="https://github.com/andrewljohnson/mtg-ai-benchmark/tree/main/results/${encodeURIComponent(r.resultDirectory)}">${esc(r.agents.includes("sol") ? "Sol worker records" : "Luna and control worker records")} ↗</a>`).join(" · ");
-  $("leaderboard").querySelector(".footnote").textContent = coverage.length
+  $("standings-note").textContent = coverage.length
     ? "Descriptive pilot-seat standings only: a pilot mirror contributes both a win and a loss (or two draws). Global totals count each physical game once. Use Coverage & confidence for independent paired samples and adjusted inference."
     : "Standings reflect the selected experiment and its opponent mix. Small pilots are exploratory; rates are not evidence of model superiority.";
   if (coverage.length) {
@@ -247,10 +255,10 @@ for (const id of ["run", "format"])
     updateFilters();
     render();
   });
-for (const id of ["deck", "opponent-deck", "seat", "deck-agent"])
+for (const id of ["deck", "opponent-deck", "seat", "deck-agent", "deck-opponent"])
   $(id).addEventListener("change", render);
 $("reset").onclick = () => {
-  for (const id of ["deck", "opponent-deck", "seat"]) $(id).value = "";
+  for (const id of ["deck", "opponent-deck", "seat", "deck-agent", "deck-opponent"]) $(id).value = "";
   render();
 };
 const tabButtons = [...document.querySelectorAll("[role=tab]")];

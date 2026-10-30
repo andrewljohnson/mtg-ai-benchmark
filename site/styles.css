@@ -857,3 +857,7 @@ button:disabled {
 .campaign-choice[aria-pressed="true"] { border-color: #a2cf6c; }
 .campaign-choice strong, .campaign-choice span { display: block; }
 .campaign-choice span { margin-top: 8px; color: #a5b3a7; font-size: 13px; }
+
+.bot-grid, .deck-grid { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #29362b; }
+.deck-grid-filters { display: flex; flex-wrap: wrap; gap: 1rem; }
+.deck-grid-filters label { min-width: 160px; }
