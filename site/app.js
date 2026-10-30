@@ -211,6 +211,15 @@ function render() {
       '<tr><td colspan="8">This legacy run predates the full campaign. Select Old School v2 for complete permutation coverage.</td></tr>';
     $("coverage-ledger").textContent = "";
   }
+  $("campaign-switcher").innerHTML = activeRuns.filter((r) => r.coverageFile || r.pilotUniqueGames).map((r) => {
+    const modelCounts = Object.entries(r.pilotUniqueGames ?? {}).filter(([a]) => data.models[a]).map(([a, n]) => `${names[a] ?? a}: ${n} unique games`).join(" · ");
+    return `<button class="campaign-choice" data-run="${esc(r.runId)}" aria-pressed="${r.runId === run?.runId}"><strong>${esc(r.runId === "old-school-v2" ? "Luna campaign" : r.runId === "old-school-sol-v1" ? "Sol campaign" : r.runId)}</strong><span>${esc(modelCounts)}</span></button>`;
+  }).join("");
+  for (const button of $("campaign-switcher").querySelectorAll("button")) button.onclick = () => {
+    $("run").value = button.dataset.run;
+    updateFilters();
+    render();
+  };
   $("pilot-cards").innerHTML = Object.entries(data.models)
     .map(([a, m]) => {
       const games = (run ? [run] : []).reduce(
@@ -306,7 +315,7 @@ try {
     "run",
     data.runs.map((r) => [
       r.runId,
-      `${r.agents.map((a) => names[a] ?? a).join(" vs ")} · ${r.runId.slice(0, 6)}${r.supersededByRunId ? " · archived" : ""}`,
+      `${r.agents.map((a) => names[a] ?? a).join(" vs ")} · ${r.runId}${r.supersededByRunId ? " · archived" : ""}`,
     ]),
   );
   updateFilters();

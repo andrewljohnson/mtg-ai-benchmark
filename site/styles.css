@@ -851,3 +851,9 @@ button:disabled {
     scroll-behavior: auto;
   }
 }
+
+.campaign-switcher { display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
+.campaign-choice { flex: 1 1 240px; padding: 16px; text-align: left; color: inherit; background: #151b17; border: 1px solid #394839; cursor: pointer; }
+.campaign-choice[aria-pressed="true"] { border-color: #a2cf6c; }
+.campaign-choice strong, .campaign-choice span { display: block; }
+.campaign-choice span { margin-top: 8px; color: #a5b3a7; font-size: 13px; }
